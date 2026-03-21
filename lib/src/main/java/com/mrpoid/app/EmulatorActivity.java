@@ -253,6 +253,9 @@ public class EmulatorActivity extends BaseActivity implements MrDefines, OnClick
     public boolean dispatchKeyEvent(android.view.KeyEvent event) {
         if (event.getKeyCode() == android.view.KeyEvent.KEYCODE_BACK) {
             if (event.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+                if (event.getRepeatCount() > 0) {
+                    return true;
+                }
                 emulator.postMrpEvent(MrDefines.MR_KEY_PRESS, MrDefines.MR_KEY_SOFTRIGHT, 0);
                 return true;
             } else if (event.getAction() == android.view.KeyEvent.ACTION_UP) {

@@ -537,18 +537,32 @@ public class EmuScreen {
     }
 
     private boolean handleKeyEvent(KeyEvent e, int keyCode) {
-        if (e.getAction() == KeyEvent.ACTION_DOWN) {
-            if (cfg.catchMenuButton && keyCode == KeyEvent.KEYCODE_BACK) {
-                keyCode = KeyEvent.KEYCODE_MENU;
-            }
+        if (cfg.catchMenuButton && keyCode == KeyEvent.KEYCODE_BACK) {
+            keyCode = KeyEvent.KEYCODE_MENU;
+        }
 
-            if (keyCode == KeyEvent.KEYCODE_MENU) {
-                return false;
-            } else if ((keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) && !cfg.catchVolumeButton) {
-                return false;
-            } else {
-                emulator.postMrpEvent(MrDefines.MR_KEY_PRESS, transKeycode(keyCode), 0);
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            return false;
+        }
+        if ((keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) && !cfg.catchVolumeButton) {
+            return false;
+        }
+
+        int mrKey = transKeycode(keyCode);
+
+        if (e.getAction() == KeyEvent.ACTION_DOWN) {
+            /* 长按会连续产生 repeat 的 DOWN；MRP 多为「一次按下 + 弹起」，重复 PRESS 易把脚本状态弄乱（如 star.mr 里 _t 尚未就绪） */
+            if (e.getRepeatCount() > 0) {
+                return true;
             }
+            emulator.postMrpEvent(MrDefines.MR_KEY_PRESS, mrKey, 0);
+            return true;
+        }
+        if (e.getAction() == KeyEvent.ACTION_UP) {
+            if (mrKey >= 0) {
+                emulator.postMrpEvent(MrDefines.MR_KEY_RELEASE, mrKey, 0);
+            }
+            return true;
         }
 
         return true;
