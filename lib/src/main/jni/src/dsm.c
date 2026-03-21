@@ -841,12 +841,16 @@ MR_FILE_HANDLE mr_open(const char* filename, uint32 mode)
 	if (mode & MR_FILE_RDWR)
 		new_mode = O_RDWR;
 
-	//如果文件存在 带此标志会导致错误
-	if ((mode & MR_FILE_CREATE) && (0 != access(fullpathname, F_OK)))
-		new_mode |= O_CREAT;
+	get_filename(fullpathname, filename);
 
-	//返回值：成功则返回文件描述符，否则返回 -1
-	f = open(get_filename(fullpathname, filename), new_mode, 0777);
+	/* 先解析出完整路径再判断；原先在 get_filename 之前 access(fullpathname) 恒对空串检测，逻辑错误 */
+	if (mode & MR_FILE_CREATE) {
+		ensure_parent_dirs_for_file(fullpathname);
+		if (access(fullpathname, F_OK) != 0)
+			new_mode |= O_CREAT;
+	}
+
+	f = open(fullpathname, new_mode, 0777);
 	//返回 0 也是成功的啊我擦
 //	if(f == 0) LOGW("open fd = 0");
 	if (f < 0){
@@ -1102,13 +1106,13 @@ int32 mr_mkDir(const char* name)
 	int ret;
 
 	get_filename(fullpathname, name);
-	if(access(fullpathname, F_OK) == 0){ //检测是否已存在
+	if (access(fullpathname, F_OK) == 0) {
 		goto ok;
 	}
 
-	ret = mkdir(fullpathname, 0777);
-	if (ret != 0){
-		LOGE("mr_mkDir(%s) err!", fullpathname);
+	ret = mkdir_p(fullpathname);
+	if (ret != 0) {
+		LOGE("mr_mkDir(%s) err! errno=%d", fullpathname, errno);
 		return MR_FAILED;
 	}
 ok:

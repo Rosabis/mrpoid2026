@@ -1,5 +1,6 @@
 #include "uc_fileLib.h"
 #include "rbtree.h"
+#include "utils.h"
 
 #include <string.h>
 #include <dirent.h>
@@ -7,6 +8,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <errno.h>
 
 #define MR_SUCCESS  0
 #define MR_FAILED  -1
@@ -31,7 +33,10 @@ int32_t uc_file_open(const char *filename, uint32_t mode) {
     if (mode & MR_FILE_RDONLY) new_mode = O_RDONLY;
     if (mode & MR_FILE_WRONLY) new_mode = O_WRONLY;
     if (mode & MR_FILE_RDWR) new_mode = O_RDWR;
-    if (mode & MR_FILE_CREATE) new_mode |= O_CREAT;
+    if (mode & MR_FILE_CREATE) {
+        ensure_parent_dirs_for_file(filename);
+        new_mode |= O_CREAT;
+    }
 
     f = open(filename, new_mode, 0777);
     if (f == -1)
@@ -94,7 +99,7 @@ int32_t uc_file_getLen(const char *filename) {
 
 int32_t uc_file_mkDir(const char *name) {
     if (access(name, F_OK) == 0) return MR_SUCCESS;
-    return mkdir(name, 0777) == 0 ? MR_SUCCESS : MR_FAILED;
+    return mkdir_p(name) == 0 ? MR_SUCCESS : MR_FAILED;
 }
 
 int32_t uc_file_rmDir(const char *name) {
