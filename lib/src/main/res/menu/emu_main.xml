@@ -1,0 +1,32 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/mi_scnshot"
+        android:orderInCategory="1"
+        android:title="@string/scnshot" />
+    <item
+        android:id="@+id/mi_switch_keypad"
+        android:orderInCategory="2"
+        android:title="@string/switch_keypad" />
+    <item
+        android:id="@+id/mi_scale_mode"
+        android:orderInCategory="3"
+        android:title="@string/scaling_mode" />
+    <item
+        android:id="@+id/mi_tools"
+        android:orderInCategory="4"
+        android:title="@string/tools" />
+    <item
+        android:id="@+id/mi_switch_anti"
+        android:orderInCategory="5"
+        android:title="@string/switchAnti" />
+    <item
+        android:id="@+id/mi_about"
+        android:orderInCategory="6"
+        android:title="@string/about_emulator" />
+    <item
+        android:id="@+id/mi_exit_all"
+        android:orderInCategory="7"
+        android:title="@string/exit_all" />
+
+</menu>
