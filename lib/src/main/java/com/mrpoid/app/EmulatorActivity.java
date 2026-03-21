@@ -406,12 +406,6 @@ public class EmulatorActivity extends BaseActivity implements MrDefines, OnClick
             showAboutDialog();
         } else if (item.getItemId() == R.id.mi_exit_all) {
             Process.killProcess(Process.myPid());
-        } else if (item.getItemId() == R.id.mi_about) {
-            new AlertDialog.Builder(this)
-                    .setTitle(R.string.about_emulator)
-                    .setMessage(R.string.about_emulator_message)
-                    .setPositiveButton(R.string.ok, null)
-                    .show();
         }
 
         return true;

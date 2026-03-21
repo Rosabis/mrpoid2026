@@ -88,6 +88,11 @@ public final class MrpoidMain {
 	public static void runMrp(final Activity context, final String mrpPath, int defProcIndex, boolean force) {
 		EmuLog.i(TAG, String.format("startMrp(%s)", mrpPath));
 
+		if (mrpPath != null && !new java.io.File(mrpPath).exists()) {
+			android.widget.Toast.makeText(context, "MRP file not found: " + mrpPath, android.widget.Toast.LENGTH_SHORT).show();
+			return;
+		}
+
 		init1(context);
 
 		if (manager == null) {
