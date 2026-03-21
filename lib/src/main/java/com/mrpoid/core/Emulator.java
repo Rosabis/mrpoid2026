@@ -581,9 +581,17 @@ public class Emulator {
     private void extractMythroadIfNeeded() {
         File mythroadDir = new File(SDCARD_ROOT + "mythroad");
         File marker = new File(mythroadDir, ".vmrp_extracted_" + MYTHROAD_BUNDLE_ID);
-        if (marker.exists()) {
+        /* VM 启动依赖 mythroad 下的引擎包；仅看标记文件不够——用户常清空目录却留下 .vmrp_extracted_*，导致不再解压、全黑屏 */
+        File engineMrp = new File(mythroadDir, "dsm_gm.mrp");
+        if (marker.exists() && engineMrp.isFile() && engineMrp.length() > 0) {
             log.i("mythroad already extracted");
             return;
+        }
+        if (marker.exists() && (!engineMrp.isFile() || engineMrp.length() == 0)) {
+            log.w("mythroad: marker present but dsm_gm.mrp missing or empty — re-extracting from assets");
+            if (!marker.delete()) {
+                log.w("mythroad: could not delete stale marker");
+            }
         }
 
         log.i("Extracting mythroad.zip from assets...");
