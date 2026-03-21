@@ -97,7 +97,8 @@ uc_engine *uc_initVmrp(void) {
 int uc_freeVmrp(uc_engine *uc) {
     /* Reset file handles and bridge state */
     uc_file_reset();
-    
+    uc_bridge_clear_ext_state();
+
     if (lowMem) {
         free(lowMem);
         lowMem = NULL;
