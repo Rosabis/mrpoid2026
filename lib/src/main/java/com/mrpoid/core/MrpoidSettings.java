@@ -228,7 +228,7 @@ public class MrpoidSettings implements OnSharedPreferenceChangeListener {
 		Emulator.native_setIntOptions("enableSound", sp.getBoolean("enableSound", true)? 1 : 0);
 		Emulator.native_setIntOptions("platdrawchar", sp.getBoolean("platdrawchar", B_DEF_PLAT_DRAW_CHAR)? 1 : 0);
 		Emulator.native_setIntOptions("uselinuxTimer", 0);
-		Emulator.native_setIntOptions("enableExram", 0);
+		Emulator.native_setIntOptions(kUseExram, sp.getBoolean(kUseExram, true) ? 1 : 0);
 		Emulator.native_setIntOptions("platform", 12); // linux
 		Emulator.native_setIntOptions("uselinuxTimer", 1);
 		Emulator.native_setIntOptions("memSize", Integer.valueOf(sp.getString(kVmMem, DEF_MEM_SIZE))); //虚拟机内存 单位 M

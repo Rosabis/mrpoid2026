@@ -1742,9 +1742,7 @@ int32 mr_platEx(int32 code, uint8* input, int32 input_len, uint8** output, int32
 			return MR_SUCCESS;
 #else
 			if(gEmuEnv.enableExram) {
-				//pageMalloc((void**)output, output_len, SCNW * SCNH *4);
-                *output_len = SCNW * SCNH * 4;
-                *output = malloc(*output_len);
+				pageMalloc((void**)output, output_len, 1024 * 1024 * 4);
                 LOGI("malloc exRam addr=%p len=%d", output, *output_len);
                 return MR_SUCCESS;
 			} else {
