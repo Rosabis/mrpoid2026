@@ -2,7 +2,7 @@
 
 ## 编译 Unicorn Engine
 
-需要为 Android NDK 交叉编译 Unicorn Engine v1.0.2（与 vmrp 使用的版本一致）。
+需要为 Android NDK 交叉编译 Unicorn Engine v1.0.3。
 
 ### 步骤
 
@@ -10,7 +10,7 @@
 ```bash
 git clone https://github.com/unicorn-engine/unicorn.git
 cd unicorn
-git checkout 1.0.2
+git checkout 1.0.3
 ```
 
 2. 为每个 ABI 编译:
