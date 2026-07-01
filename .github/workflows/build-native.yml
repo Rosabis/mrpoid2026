@@ -54,6 +54,17 @@ jobs:
           rm -rf "$BUILD_ROOT"
           git clone --depth 1 --branch "$UNICORN_VERSION" https://github.com/unicorn-engine/unicorn.git "$BUILD_ROOT/src"
 
+          python3 - "$BUILD_ROOT/src" <<'PY'
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          header = root / "qemu/include/qemu/host-utils.h"
+          source = root / "qemu/util/host-utils.c"
+          header.write_text(header.read_text().replace("#ifdef CONFIG_INT128", "#if defined(CONFIG_INT128) && defined(__SIZEOF_INT128__)"), newline="")
+          source.write_text(source.read_text().replace("#ifndef CONFIG_INT128", "#if !defined(CONFIG_INT128) || !defined(__SIZEOF_INT128__)"), newline="")
+          PY
+
           rm -rf "$UNICORN_DIR/include" "$UNICORN_DIR/lib"
           mkdir -p "$UNICORN_DIR/include" "$UNICORN_DIR/lib"
           cp -R "$BUILD_ROOT/src/include/." "$UNICORN_DIR/include/"
@@ -68,6 +79,7 @@ jobs:
               -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
               -DANDROID_ABI="$ABI" \
               -DANDROID_PLATFORM="$ANDROID_PLATFORM" \
+              -DUNICORN_ARCH=arm \
               -DUNICORN_BUILD_TESTS=OFF \
               -DUNICORN_BUILD_SAMPLES=OFF \
               -DUNICORN_INSTALL=OFF \
