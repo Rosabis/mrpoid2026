@@ -10,10 +10,12 @@
 #include <sys/stat.h>
 #include <errno.h>
 
-#include "dsm.h"
-
 #define MR_SUCCESS  0
 #define MR_FAILED  -1
+#define UC_DSM_ROOT_PATH "mythroad/"
+#define UC_DSM_MAX_FILE_LEN 128
+
+extern const char *GetDsmWorkPath(void);
 
 static struct rb_root filef_map = RB_ROOT;
 static uint32_t filef_count = 0;
@@ -26,7 +28,7 @@ static void normalize_path(const char *filename, char *out, size_t out_size) {
 
     if (!filename || !out || out_size == 0) return;
     while (name[0] == '.' && name[1] == '/') name += 2;
-    if (name[0] == '/' || strncmp(name, DSM_ROOT_PATH, strlen(DSM_ROOT_PATH)) == 0) {
+    if (name[0] == '/' || strncmp(name, UC_DSM_ROOT_PATH, strlen(UC_DSM_ROOT_PATH)) == 0) {
         snprintf(out, out_size, "%s", name);
     } else {
         snprintf(out, out_size, "%s%s", GetDsmWorkPath(), name);
@@ -43,7 +45,7 @@ void uc_file_reset(void) {
 int32_t uc_file_open(const char *filename, uint32_t mode) {
     int f;
     int new_mode = 0;
-    char path[DSM_MAX_FILE_LEN + 8] = {0};
+    char path[UC_DSM_MAX_FILE_LEN + 8] = {0};
 
     normalize_path(filename, path, sizeof(path));
 
@@ -101,8 +103,8 @@ int32_t uc_file_write(int32_t f, void *p, uint32_t l) {
 }
 
 int32_t uc_file_rename(const char *oldname, const char *newname) {
-    char old_path[DSM_MAX_FILE_LEN + 8] = {0};
-    char new_path[DSM_MAX_FILE_LEN + 8] = {0};
+    char old_path[UC_DSM_MAX_FILE_LEN + 8] = {0};
+    char new_path[UC_DSM_MAX_FILE_LEN + 8] = {0};
     normalize_path(oldname, old_path, sizeof(old_path));
     normalize_path(newname, new_path, sizeof(new_path));
     ensure_parent_dirs_for_file(new_path);
@@ -110,35 +112,35 @@ int32_t uc_file_rename(const char *oldname, const char *newname) {
 }
 
 int32_t uc_file_remove(const char *filename) {
-    char path[DSM_MAX_FILE_LEN + 8] = {0};
+    char path[UC_DSM_MAX_FILE_LEN + 8] = {0};
     normalize_path(filename, path, sizeof(path));
     return remove(path) == 0 ? MR_SUCCESS : MR_FAILED;
 }
 
 int32_t uc_file_getLen(const char *filename) {
     struct stat s1;
-    char path[DSM_MAX_FILE_LEN + 8] = {0};
+    char path[UC_DSM_MAX_FILE_LEN + 8] = {0};
     normalize_path(filename, path, sizeof(path));
     if (stat(path, &s1) != 0) return -1;
     return s1.st_size;
 }
 
 int32_t uc_file_mkDir(const char *name) {
-    char path[DSM_MAX_FILE_LEN + 8] = {0};
+    char path[UC_DSM_MAX_FILE_LEN + 8] = {0};
     normalize_path(name, path, sizeof(path));
     if (access(path, F_OK) == 0) return MR_SUCCESS;
     return mkdir_p(path) == 0 ? MR_SUCCESS : MR_FAILED;
 }
 
 int32_t uc_file_rmDir(const char *name) {
-    char path[DSM_MAX_FILE_LEN + 8] = {0};
+    char path[UC_DSM_MAX_FILE_LEN + 8] = {0};
     normalize_path(name, path, sizeof(path));
     return rmdir(path) == 0 ? MR_SUCCESS : MR_FAILED;
 }
 
 int32_t uc_file_info(const char *filename) {
     struct stat s1;
-    char path[DSM_MAX_FILE_LEN + 8] = {0};
+    char path[UC_DSM_MAX_FILE_LEN + 8] = {0};
     normalize_path(filename, path, sizeof(path));
     if (stat(path, &s1) != 0) return MR_IS_INVALID;
     if (s1.st_mode & S_IFDIR) return MR_IS_DIR;
@@ -147,7 +149,7 @@ int32_t uc_file_info(const char *filename) {
 }
 
 int32_t uc_file_opendir(const char *name) {
-    char path[DSM_MAX_FILE_LEN + 8] = {0};
+    char path[UC_DSM_MAX_FILE_LEN + 8] = {0};
     normalize_path(name, path, sizeof(path));
     DIR *pDir = opendir(path);
     if (pDir != NULL) {
