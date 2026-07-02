@@ -85,8 +85,6 @@ typedef struct {
 
 uc_err uc_bridge_init(uc_engine *uc);
 uc_err uc_bridge_ext_init(uc_engine *uc);
-/** Call before freeing Unicorn memory pool (mrpMem); drops host pointers into that pool. */
-void uc_bridge_clear_ext_state(void);
 
 int32_t uc_bridge_dsm_init(uc_engine *uc, int screenW, int screenH);
 int32_t uc_bridge_dsm_mr_start_dsm(uc_engine *uc, char *filename, char *ext, char *entry);

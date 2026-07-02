@@ -39,7 +39,6 @@ import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
-import android.preference.PreferenceManager;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -70,14 +69,6 @@ public class Emulator {
 
     /*SD卡最低可用容量*/
     public static final int DEF_MIN_SDCARD_SPACE_MB = 8;
-
-    /**
-     * 合成 IMEI/IMSI（各 15 位，與 native {@code MAX_IMEI_LEN}/{@code MAX_IMSI_LEN} 一致）。
-     * DSM/MRP 會透過 {@link #N2J_getStringSysInfo} 讀取；本專案不向 {@link android.telephony.TelephonyManager}
-     * 索取真實設備標識，無需電話權限，且避免全 0 觸發部分遊戲的格式或運算問題。
-     */
-    private static final String SYNTHETIC_IMEI = "862000099887766";
-    private static final String SYNTHETIC_IMSI = "460002999000001";
 
     private static final int MSG_TIMER_OUT = 0x01,
             MSG_CALLBACK = 0x02,
@@ -175,19 +166,12 @@ public class Emulator {
 
     void init_i() {
         Log.i(TAG, "加载os库");
-        if (bInited) {
-            if (emulatorView != null && screen != null) {
-                screen.attachToView(emulatorView);
-            }
+        if (bInited)
             return;
-        }
 
         try {
             //			System.loadLibrary("mrpoid");
             cfg = EmuConfig.getInstance();
-            cfg.scaleMode = EmuConfig.scaleModeFromPreferenceValue(
-                    PreferenceManager.getDefaultSharedPreferences(mContext)
-                            .getString(MrpoidSettings.kScaleMode, "proportional"));
             if (!bSoLoaded) {
                 System.loadLibrary("mrpoid");
                 bSoLoaded = true;
@@ -240,8 +224,8 @@ public class Emulator {
             }
         }
 
-        N2J_imei = SYNTHETIC_IMEI;
-        N2J_imsi = SYNTHETIC_IMSI;
+        N2J_imsi = "000000000000000";
+        N2J_imei = "000000000000000";
 
         bInited = true;
     }
@@ -309,52 +293,13 @@ public class Emulator {
         }
     }
 
-    /**
-     * mythroad.zip 解压到 {@code mythroad/} 下；工作目录同为 {@code mythroad/}。Android 上文件名区分大小写，
-     * 对 zip 内 {@code DSM_GM.mrp} 等与传入名不一致的情况做回退解析。
-     */
-    private File resolveMrpOnDisk(String path) {
-        if (path == null || path.isEmpty()) {
-            return null;
-        }
-        if (path.charAt(0) == '*' || path.charAt(0) == '%') {
-            return null;
-        }
-        File f = new File(path);
-        if (f.isFile()) {
-            return f;
-        }
-        File inWork = new File(getVmFullPath() + path);
-        if (inWork.isFile()) {
-            return inWork;
-        }
-        String base = f.getName();
-        File inDefault = new File(getVmDefaultFullPath(), base);
-        if (inDefault.isFile()) {
-            return inDefault;
-        }
-        File defaultDir = new File(getVmDefaultFullPath());
-        if (defaultDir.isDirectory()) {
-            File[] list = defaultDir.listFiles();
-            if (list != null) {
-                for (File c : list) {
-                    if (c.isFile() && c.getName().equalsIgnoreCase(base)) {
-                        return c;
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
     void startup_i(String path) {
         if (running)
             return;
 
         log.i("startUp: " + path);
 
-        File resolved = resolveMrpOnDisk(path);
-        if (resolved == null || !resolved.isFile()) {
+        if (!new File(path).exists() && !new File(getVmFullPath() + path).exists()) {
             log.e("MRP file not found: " + path);
             final String msg = "MRP file not found: " + path;
             if (emulatorActivity != null) {
@@ -363,8 +308,6 @@ public class Emulator {
             }
             return;
         }
-        path = resolved.getAbsolutePath();
-        log.i("resolved MRP path: " + path);
 
         if (path.startsWith(SDCARD_ROOT)) {
             final int i = path.indexOf(getVmWorkPath());
@@ -471,18 +414,6 @@ public class Emulator {
         handler.sendEmptyMessage(MSG_EXIT);
     }
 
-    /**
-     * Clear UI references when the emulator activity is destroyed without killing the process.
-     * Avoids holding a destroyed activity; the next {@link #init} replaces these.
-     */
-    public void detachUi(EmulatorActivity activity) {
-        if (emulatorActivity != activity) {
-            return;
-        }
-        emulatorActivity = null;
-        emulatorView = null;
-    }
-
     public void reqBrowser(String urlString) {
         if (!urlString.startsWith("http")) {
             urlString = "http://" + urlString;
@@ -524,104 +455,48 @@ public class Emulator {
 
         setVmRootPath(SDCARD_ROOT);
 
-        /* 固定 240x320 渲染，不再使用 mythroad/240x320/ 子目录；工作目录即 SD 卡下的 mythroad/ */
-        setVmWorkPath(DEF_WORK_PATH);
+        setVmWorkPath(DEF_WORK_PATH + cfg.scnw + "x" + cfg.scnh + "/");
 
         log.i("sd path = " + mVmRoot);
         log.i("mythroad path = " + mWorkPath);
 
         extractMythroadIfNeeded();
-        normalizeMythroadDirsStrip240320();
     }
 
-    /**
-     * mythroad.zip 内常有 {@code app240320}、{@code plugin240320} 等目录；固定 240×320 后改为无分辨率后缀名。
-     * 仅处理 mythroad 根下直接子目录，且目标名不存在时才重命名。
-     */
-    private static final String MYTHROAD_DIR_RES_SUFFIX = "240320";
-
-    private void normalizeMythroadDirsStrip240320() {
-        File mythRoot = new File(SDCARD_ROOT, "mythroad");
-        if (!mythRoot.isDirectory()) {
-            return;
-        }
-        File[] children = mythRoot.listFiles();
-        if (children == null) {
-            return;
-        }
-        for (File child : children) {
-            if (!child.isDirectory()) {
-                continue;
-            }
-            String name = child.getName();
-            if (!name.endsWith(MYTHROAD_DIR_RES_SUFFIX)
-                    || name.length() <= MYTHROAD_DIR_RES_SUFFIX.length()) {
-                continue;
-            }
-            String base = name.substring(0, name.length() - MYTHROAD_DIR_RES_SUFFIX.length());
-            if (base.isEmpty()) {
-                continue;
-            }
-            File dest = new File(mythRoot, base);
-            if (dest.exists()) {
-                log.w("mythroad normalize: skip " + name + " -> " + base + " (target exists)");
-                continue;
-            }
-            if (child.renameTo(dest)) {
-                log.i("mythroad normalize: " + name + " -> " + base);
-            } else {
-                log.e("mythroad normalize: failed " + name + " -> " + base);
-            }
-        }
-    }
-
-    /** 更换 assets 内 mythroad.zip 时递增/改名，以便重新解压到 SD 卡（须为 STORED/DEFLATE，ZipInputStream 可读） */
-    private static final String MYTHROAD_BUNDLE_ID = "vmrp_mythroad_zipstream_20250323";
+    /** 更换 assets 内 mythroad.zip 时递增/改名，以便重新解压到 SD 卡 */
+    private static final String MYTHROAD_BUNDLE_ID = "vmrp_win32_20220102";
 
     private void extractMythroadIfNeeded() {
         File mythroadDir = new File(SDCARD_ROOT + "mythroad");
         File marker = new File(mythroadDir, ".vmrp_extracted_" + MYTHROAD_BUNDLE_ID);
-        /* VM 启动依赖 mythroad 下的引擎包；仅看标记文件不够——用户常清空目录却留下 .vmrp_extracted_*，导致不再解压、全黑屏 */
-        File engineMrp = new File(mythroadDir, "dsm_gm.mrp");
-        if (marker.exists() && engineMrp.isFile() && engineMrp.length() > 0) {
+        if (marker.exists()) {
             log.i("mythroad already extracted");
             return;
         }
-        if (marker.exists() && (!engineMrp.isFile() || engineMrp.length() == 0)) {
-            log.w("mythroad: marker present but dsm_gm.mrp missing or empty — re-extracting from assets");
-            if (!marker.delete()) {
-                log.w("mythroad: could not delete stale marker");
-            }
-        }
 
         log.i("Extracting mythroad.zip from assets...");
-        try (InputStream is = mContext.getAssets().open("mythroad.zip");
-             ZipInputStream zis = new ZipInputStream(is)) {
-            byte[] buffer = new byte[8192];
+        try {
+            InputStream is = mContext.getAssets().open("mythroad.zip");
+            ZipInputStream zis = new ZipInputStream(is);
             ZipEntry entry;
+            byte[] buffer = new byte[8192];
             while ((entry = zis.getNextEntry()) != null) {
                 File outFile = new File(SDCARD_ROOT, entry.getName());
                 if (entry.isDirectory()) {
-                    //noinspection ResultOfMethodCallIgnored
                     outFile.mkdirs();
                 } else {
-                    File parent = outFile.getParentFile();
-                    if (parent != null) {
-                        //noinspection ResultOfMethodCallIgnored
-                        parent.mkdirs();
+                    outFile.getParentFile().mkdirs();
+                    FileOutputStream fos = new FileOutputStream(outFile);
+                    int len;
+                    while ((len = zis.read(buffer)) > 0) {
+                        fos.write(buffer, 0, len);
                     }
-                    try (FileOutputStream fos = new FileOutputStream(outFile)) {
-                        int len;
-                        while ((len = zis.read(buffer)) > 0) {
-                            fos.write(buffer, 0, len);
-                        }
-                    }
+                    fos.close();
                 }
                 zis.closeEntry();
             }
-            //noinspection ResultOfMethodCallIgnored
-            mythroadDir.mkdirs();
-            //noinspection ResultOfMethodCallIgnored
+            zis.close();
+            is.close();
             marker.createNewFile();
             log.i("mythroad extracted successfully");
         } catch (IOException e) {

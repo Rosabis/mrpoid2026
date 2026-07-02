@@ -88,7 +88,7 @@ public final class MrpoidMain {
 	public static void runMrp(final Activity context, final String mrpPath, int defProcIndex, boolean force) {
 		EmuLog.i(TAG, String.format("startMrp(%s)", mrpPath));
 
-		if (mrpPath != null && new java.io.File(mrpPath).isAbsolute() && !new java.io.File(mrpPath).exists()) {
+		if (mrpPath != null && !new java.io.File(mrpPath).exists()) {
 			android.widget.Toast.makeText(context, "MRP file not found: " + mrpPath, android.widget.Toast.LENGTH_SHORT).show();
 			return;
 		}
@@ -104,13 +104,23 @@ public final class MrpoidMain {
 
 			@Override
 			public void onSuccess(int procIndex, AppProcess process, boolean alreadyRun) {
+				/**
+				 * 如果 activity 正在运行，我们需要做的是把 activity 调到前台
+					 *
+				 * 下面的启动方法可以达到效果
+				 */
+//				if(alreadyRun) {
+//
+//				} else
 				{
+//					UIUtils.ToastMessage(context, "进程获取成功 " + procIndex);
 					Log.i(TAG, "进程获取成功 " + procIndex);
 					Intent intent = new Intent(EmulatorService.ACTION_STARTMRP);
 					intent.setClassName(context, "com.mrpoid.apps.AppService" + procIndex);
 					intent.putExtra(INTENT_KEY_ENTRY_MRP, mrpPath);
 					intent.putExtra(INTENT_KEY_ENTRY_ACTIVITY, context.getClass().getName());
 					try {
+						// TODO: 失败检查
 						context.getApplicationContext().startService(intent);
 					}catch (Exception e){
 						e.printStackTrace();

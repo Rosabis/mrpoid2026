@@ -137,20 +137,8 @@ static void br__mr_c_function_new(BridgeMap *o, uc_engine *uc) {
     uc_reg_read(uc, UC_ARM_REG_R1, &p_len);
     LOGI("_mr_c_function_new(0x%X, %u)", p_f, p_len);
 
-    /* 与 mythroad _mr_c_function_new 一致：先释放旧块再分配；否则嵌套 mr_start 泄漏且返回父 MRP 后状态错乱 */
-    if (mr_c_function_P) {
-        uc_my_freeExt(mr_c_function_P);
-        mr_c_function_P = NULL;
-    }
-
     mr_extHelper_addr = p_f;
     mr_c_function_P = uc_my_mallocExt(p_len);
-    if (!mr_c_function_P) {
-        mr_extHelper_addr = 0;
-        LOGE("_mr_c_function_new: alloc %u failed", p_len);
-        SET_RET_V(MR_FAILED);
-        return;
-    }
     memset(mr_c_function_P, 0, p_len);
 
     uint32_t v = uc_toMrpMemAddr(mr_c_function_P);
@@ -849,27 +837,7 @@ uc_err uc_bridge_ext_init(uc_engine *uc) {
     return UC_ERR_OK;
 }
 
-static int uc_ext_sb_in_vm(uint32_t sb) {
-    return sb != 0U && sb < (uint32_t)UC_END_ADDRESS;
-}
-
-void uc_bridge_clear_ext_state(void) {
-    mr_c_function_P = NULL;
-    mr_extHelper_addr = 0;
-}
-
 static int32_t bridge_mr_extHelper(uc_engine *uc, uint32_t code, uint32_t input, uint32_t input_len) {
-    if (!mr_extHelper_addr || !mr_c_function_P) {
-        LOGE("bridge_mr_extHelper: no ext (helper=0x%X cfp=%p)", mr_extHelper_addr, (void *)mr_c_function_P);
-        return MR_FAILED;
-    }
-    if (mr_c_function_P->start_of_ER_RW != 0U &&
-        !uc_ext_sb_in_vm(mr_c_function_P->start_of_ER_RW)) {
-        LOGE("bridge_mr_extHelper: invalid start_of_ER_RW=0x%X (helper=0x%X)",
-             mr_c_function_P->start_of_ER_RW, mr_extHelper_addr);
-        return MR_FAILED;
-    }
-
     uint32_t v = uc_toMrpMemAddr(mr_c_function_P);
     uc_reg_write(uc, UC_ARM_REG_R0, &v);
     uc_reg_write(uc, UC_ARM_REG_R1, &code);
@@ -877,7 +845,7 @@ static int32_t bridge_mr_extHelper(uc_engine *uc, uint32_t code, uint32_t input,
     uc_reg_write(uc, UC_ARM_REG_R3, &input_len);
 
     /* mythroad 用 r9 作 SB；Unicorn 里寄存器需每次调用前设好，否则 dsm_init 等会返回 0 */
-    if (mr_c_function_P->start_of_ER_RW != 0U) {
+    if (mr_c_function_P && mr_c_function_P->start_of_ER_RW) {
         uint32_t r9sb = mr_c_function_P->start_of_ER_RW;
         uc_reg_write(uc, UC_ARM_REG_R9, &r9sb);
     }

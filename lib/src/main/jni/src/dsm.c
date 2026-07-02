@@ -841,9 +841,11 @@ MR_FILE_HANDLE mr_open(const char* filename, uint32 mode)
 	if (mode & MR_FILE_RDWR)
 		new_mode = O_RDWR;
 
+	//如果文件存在 带此标志会导致错误
 	if ((mode & MR_FILE_CREATE) && (0 != access(fullpathname, F_OK)))
 		new_mode |= O_CREAT;
 
+	//返回值：成功则返回文件描述符，否则返回 -1
 	f = open(get_filename(fullpathname, filename), new_mode, 0777);
 	//返回 0 也是成功的啊我擦
 //	if(f == 0) LOGW("open fd = 0");
@@ -1100,12 +1102,12 @@ int32 mr_mkDir(const char* name)
 	int ret;
 
 	get_filename(fullpathname, name);
-	if (access(fullpathname, F_OK) == 0) {
+	if(access(fullpathname, F_OK) == 0){ //检测是否已存在
 		goto ok;
 	}
 
 	ret = mkdir(fullpathname, 0777);
-	if (ret != 0) {
+	if (ret != 0){
 		LOGE("mr_mkDir(%s) err!", fullpathname);
 		return MR_FAILED;
 	}
@@ -1736,7 +1738,9 @@ int32 mr_platEx(int32 code, uint8* input, int32 input_len, uint8** output, int32
 			return MR_SUCCESS;
 #else
 			if(gEmuEnv.enableExram) {
-				pageMalloc((void**)output, output_len, 1024 * 1024 * 4);
+				//pageMalloc((void**)output, output_len, SCNW * SCNH *4);
+                *output_len = SCNW * SCNH * 4;
+                *output = malloc(*output_len);
                 LOGI("malloc exRam addr=%p len=%d", output, *output_len);
                 return MR_SUCCESS;
 			} else {

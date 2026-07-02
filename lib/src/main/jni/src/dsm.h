@@ -91,8 +91,6 @@ int32 mr_cacheSync(void* addr, int32 len);
 /** 设置 SD卡路径，参数底层不做错误检查 */
 void SetDsmSDPath(const char * path);
 void SetDsmWorkPath(const char *path);
-const char *GetDsmSDPath(void);
-const char *GetDsmWorkPath(void);
 
 int32 mr_open(const char* filename, uint32 mode);
 int32 mr_close(int32 f);
