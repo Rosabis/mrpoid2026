@@ -248,6 +248,13 @@ public class Emulator {
         return emulatorView;
     }
 
+    public void detachUi(EmulatorActivity activity) {
+        if (emulatorActivity == activity) {
+            emulatorActivity = null;
+            emulatorView = null;
+        }
+    }
+
     public EmuScreen getScreen() {
         return screen;
     }
