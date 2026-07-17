@@ -106,6 +106,75 @@ static struct rb_root root = RB_ROOT;
 
 static void uc_runCode(uc_engine *uc, uint32_t startAddr, uint32_t stopAddr, bool isThumb);
 
+/*
+ * Unicorn 2：宿主直接改 guest 内存不会走 QEMU SMC，必须手动失效 TB。
+ * 否则 pause→dump0→resume（短信/支付插件）会执行旧翻译块，表现为黑屏/卡「请稍等」。
+ * mrpoid 自带 unicorn.h 里 uc_ctl_flush_tlb 实际是 UC_CTL_TB_FLUSH。
+ */
+#if UC_API_MAJOR >= 2
+#ifndef uc_ctl_flush_tb
+#define uc_ctl_flush_tb uc_ctl_flush_tlb
+#endif
+
+static void unicorn2_refresh_pc(uc_engine *uc) {
+    uint32_t pc = 0, cpsr = 0;
+    uc_reg_read(uc, UC_ARM_REG_PC, &pc);
+    uc_reg_read(uc, UC_ARM_REG_CPSR, &cpsr);
+    if (cpsr & (1u << 5)) {
+        pc |= 1u;
+    } else {
+        pc &= ~1u;
+    }
+    uc_reg_write(uc, UC_ARM_REG_PC, &pc);
+}
+
+static void unicorn2_invalidate_range(uc_engine *uc, uint32_t addr, uint32_t len) {
+    if (len == 0) {
+        return;
+    }
+    uc_err err = uc_ctl_remove_cache(uc, (uint64_t)addr, (uint64_t)addr + (uint64_t)len);
+    if (err) {
+        uc_ctl_flush_tb(uc);
+    }
+}
+
+static void unicorn2_flush_all(uc_engine *uc) {
+    uc_ctl_flush_tb(uc);
+    unicorn2_refresh_pc(uc);
+}
+#else
+static void unicorn2_invalidate_range(uc_engine *uc, uint32_t addr, uint32_t len) {
+    (void)uc;
+    (void)addr;
+    (void)len;
+}
+static void unicorn2_flush_all(uc_engine *uc) {
+    (void)uc;
+}
+#endif
+
+static void try_flush_tb_for_cache_sync(uc_engine *uc, const char *str) {
+    unsigned int addr = 0;
+    int len = 0;
+    /* guest mythroad: LOGW("mr_cacheSync(0x%p, %d)", addr, len) */
+    if (sscanf(str, "[WARN]mr_cacheSync(0x%x, %d)", &addr, &len) != 2 || len <= 0) {
+        return;
+    }
+#if UC_API_MAJOR >= 2
+    uc_err err = uc_ctl_remove_cache(uc, (uint64_t)addr, (uint64_t)addr + (uint64_t)len);
+    if (err) {
+        LOGW("mr_cacheSync remove_cache(0x%X,+%d): %u (%s), flush_tb",
+             addr, len, err, uc_strerror(err));
+        uc_ctl_flush_tb(uc);
+    } else {
+        LOGI("mr_cacheSync remove_cache(0x%X,+%d) ok", addr, len);
+    }
+    unicorn2_refresh_pc(uc);
+#else
+    (void)uc;
+#endif
+}
+
 static uint32_t getArg(uc_engine *uc, uint32_t n) {
     uint32_t v;
     if (n <= 3) {
@@ -199,7 +268,14 @@ static void br_test(BridgeMap *o, uc_engine *uc) {
 static void br_log(BridgeMap *o, uc_engine *uc) {
     uint32_t msg;
     uc_reg_read(uc, UC_ARM_REG_R0, &msg);
-    __android_log_print(ANDROID_LOG_INFO, "mythroad", "%s", (char *)uc_getMrpMemPtr(msg));
+    char *str = (char *)uc_getMrpMemPtr(msg);
+    try_flush_tb_for_cache_sync(uc, str);
+    if (strstr(str, "appResume") != NULL) {
+        /* pause→dump0→resume：上一个 MRP 代码可能已被宿主写回；全量刷 TB */
+        unicorn2_flush_all(uc);
+        LOGI("appResume: flushed TB for Unicorn2");
+    }
+    __android_log_print(ANDROID_LOG_INFO, "mythroad", "%s", str);
 }
 
 static void br_exit(BridgeMap *o, uc_engine *uc) {
@@ -316,7 +392,12 @@ static void br_mr_read(BridgeMap *o, uc_engine *uc) {
     uc_reg_read(uc, UC_ARM_REG_R0, &f);
     uc_reg_read(uc, UC_ARM_REG_R1, &p);
     uc_reg_read(uc, UC_ARM_REG_R2, &l);
-    SET_RET_V(uc_file_read(f, uc_getMrpMemPtr(p), l));
+    /* dump0/插件恢复：宿主写 guest 内存，UC2 必须失效对应 TB */
+    int32_t ret = uc_file_read(f, uc_getMrpMemPtr(p), l);
+    if (ret > 0) {
+        unicorn2_invalidate_range(uc, p, (uint32_t)ret);
+    }
+    SET_RET_V(ret);
 }
 
 static void br_mr_write(BridgeMap *o, uc_engine *uc) {
@@ -952,6 +1033,8 @@ int32_t uc_bridge_dsm_mr_pauseApp(uc_engine *uc) {
 
 int32_t uc_bridge_dsm_mr_resumeApp(uc_engine *uc) {
     pthread_mutex_lock(&mutex);
+    /* 回到上一个 MRP 前先刷 TB，避免执行 pause 期间被改写但仍缓存的旧翻译块 */
+    unicorn2_flush_all(uc);
     int32_t v = bridge_mr_event(uc, UC_MR_RESUMEAPP, 0, 0);
     pthread_mutex_unlock(&mutex);
     return v;

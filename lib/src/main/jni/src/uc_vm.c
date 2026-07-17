@@ -119,6 +119,19 @@ int32_t uc_loadCode(const void *extData, int32_t extLen) {
     if (!g_uc || !extData || extLen <= 0)
         return MR_FAILED;
     uc_mem_write(g_uc, UC_CODE_ADDRESS, extData, extLen);
+#if UC_API_MAJOR >= 2
+    /* 宿主写代码段后失效 TB，否则可能执行旧翻译块 */
+#ifndef uc_ctl_flush_tb
+#define uc_ctl_flush_tb uc_ctl_flush_tlb
+#endif
+    {
+        uc_err err = uc_ctl_remove_cache(g_uc, (uint64_t)UC_CODE_ADDRESS,
+                                         (uint64_t)UC_CODE_ADDRESS + (uint64_t)extLen);
+        if (err) {
+            uc_ctl_flush_tb(g_uc);
+        }
+    }
+#endif
     LOGI("uc_loadCode: loaded %d bytes to 0x%X", extLen, UC_CODE_ADDRESS);
     return MR_SUCCESS;
 }
